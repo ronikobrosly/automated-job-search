@@ -30,19 +30,38 @@ Automated job checking and application pipeline that scrapes job websites, ident
 
 ### Core Pipeline Flow
 
-1. **Job Scraping**: Collect new job postings from configured websites
-2. **Data Persistence**: Store job data in SQLite database for comparison
-3. **Relevance Filtering**: Identify new roles that match criteria
-4. **Document Generation**: Modify LaTeX templates to fit job descriptions
-5. **Email Reporting**: Send hourly reports with tailored PDFs
+The automated pipeline (`src/__main__.py`) executes these phases sequentially:
+
+1. **Job Scraping**: Collect new job postings from configured websites with anti-detection measures
+2. **Data Persistence**: Store job data in SQLite database with deduplication and change tracking
+3. **Relevance Analysis**: Apply ML/NLP techniques to identify jobs matching user criteria
+4. **Document Generation**: Generate customized LaTeX resumes and cover letters for relevant jobs
+5. **Email Reporting**: Send comprehensive reports with generated PDFs attached
+6. **Data Cleanup**: Remove old job records and optimize database storage
 
 ### Key Components
 
-- **Web Scrapers**: Multi-site job posting collection
-- **SQLite Database**: Job tracking and deduplication
-- **LaTeX Processor**: Resume/cover letter customization
-- **Email Service**: Automated reporting system
+- **Web Scrapers**: Multi-site job posting collection with anti-detection features
+  - Configurable sites in `config/sites/sites_config.py` 
+  - Currently supports: Hirebase.org (with more sites planned)
+  - Anti-detection: Random delays, user agent rotation, exponential backoff
+- **SQLite Database**: Job tracking, deduplication, and change detection
+- **Pipeline Orchestrator**: Central coordinator in `src/__main__.py`
+- **LaTeX Processor**: Resume/cover letter customization (planned)
+- **Email Service**: Automated reporting system (planned)
 - **AWS Integration**: Cloud deployment and scheduling
+
+### Web Scraping Features
+
+- **Anti-Detection Measures**: 
+  - Random delays between requests (3-8 seconds)
+  - Rotating user agents and HTTP headers
+  - Exponential backoff on rate limits
+  - Session management with retry strategies
+- **Robust Error Handling**: Graceful failure recovery and comprehensive logging
+- **Pagination Support**: Automatically handles multi-page job listings
+- **Content Deduplication**: Prevents reprocessing of existing jobs
+- **Change Detection**: Tracks job updates using content hashing
 
 ## Project Structure
 
@@ -137,7 +156,7 @@ Automated job checking and application pipeline that scrapes job websites, ident
 
 4. **Initialize the database**
    ```bash
-   python -m src.database.init_db
+   python scripts/setup/init_database.py
    ```
 
 ### Docker Setup
@@ -149,16 +168,39 @@ docker-compose up --build
 
 ## Usage
 
-### Manual Execution
+### Pipeline Execution
+
+The main pipeline orchestrates all components through a single entry point:
 
 ```bash
-# Run the complete job pipeline
-python main.py
+# Run the complete automated job search pipeline
+python -m src
 
-# Run specific components
-python -m src.scrapers.run_scrapers
-python -m src.templates.generate_documents
-python -m src.email.send_reports
+# Or alternatively
+python src/__main__.py
+
+# Run with specific options
+python -m src --log-level DEBUG              # Enable debug logging
+python -m src --skip-email                   # Skip email reporting
+python -m src --skip-analysis                # Skip job relevance analysis
+python -m src --skip-documents               # Skip document generation
+python -m src --cleanup-only                 # Only run data cleanup
+
+# Test scraping without full pipeline
+python -m src --skip-analysis --skip-documents --skip-email
+```
+
+### Component Testing
+
+You can also test individual components:
+
+```bash
+# Test database operations
+python scripts/setup/init_database.py
+python scripts/migration/migrate_database.py current
+
+# Test scraping (when individual scrapers are implemented)
+# python -m src.scrapers.sites.hirebase_scraper
 ```
 
 ### Scheduled Execution
@@ -167,18 +209,40 @@ The system is designed for automated execution via cron or AWS scheduling:
 
 ```bash
 # Add to crontab for hourly execution
-0 * * * * cd /path/to/automated-job-search && python main.py
+0 * * * * cd /path/to/automated-job-search && python -m src
 ```
 
 ## Configuration
 
-### Required Inputs
+### Job Site Configuration
 
-The system expects three main configuration inputs:
+Job scraping websites are configured in `config/sites/sites_config.py`:
+
+```python
+# Currently configured sites
+SITES_CONFIG = {
+    'hirebase': SiteConfig(
+        name='Hirebase',
+        base_url='https://hirebase.org',
+        search_url='https://hirebase.org/search?page={page}&...',
+        enabled=True,
+        max_pages=20,
+        delay_range=(3, 8),  # Random delay between requests
+        max_retries=3
+    )
+}
+```
+
+To add new job sites:
+1. Add configuration to `SITES_CONFIG` in `config/sites/sites_config.py`
+2. Create site-specific scraper in `src/scrapers/sites/`
+3. Add scraper to the factory method in `ScraperManager`
+
+### Required Template Inputs (Planned)
 
 1. **LaTeX Resume Template**: Place in `templates/resume/`
 2. **Cover Letter Template**: Place in `templates/cover_letter/`
-3. **Site Configuration**: Define job websites and scraping parameters in `config/sites/`
+3. **Email Configuration**: SMTP settings in `config/email/`
 
 ### Environment Variables
 
@@ -205,16 +269,20 @@ ruff format .
 ruff check .
 
 # Database operations
-python -m src.database.init_db
-python -m src.database.migrate
+python scripts/setup/init_database.py
+python scripts/migration/migrate_database.py upgrade
+python scripts/migration/migrate_database.py current
 ```
 
 ### Development Notes
 
-- SQLite database tracks job postings to prevent duplicate processing
-- LaTeX processing requires local LaTeX installation or containerized solution
-- Email functionality needs SMTP configuration
-- Consider rate limiting for web scraping to avoid being blocked
+- SQLite database automatically tracks job postings to prevent duplicate processing
+- Content hashing detects job changes and updates existing records
+- Anti-detection measures are already implemented for respectful scraping
+- Pipeline supports modular execution - individual phases can be skipped for testing
+- Comprehensive logging captures all scraping activities and errors
+- LaTeX processing requires local LaTeX installation or containerized solution (planned)
+- Email functionality needs SMTP configuration (planned)
 
 ## Testing
 

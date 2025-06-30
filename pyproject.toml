@@ -1,0 +1,14 @@
+[project]
+name = "automated-job-search"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.16.2",
+    "beautifulsoup4>=4.13.4",
+    "fake-useragent>=2.2.0",
+    "requests>=2.32.4",
+    "selenium>=4.34.0",
+    "sqlalchemy>=2.0.41",
+]

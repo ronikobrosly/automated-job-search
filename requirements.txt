@@ -1,0 +1,22 @@
+# Database and ORM
+alembic==1.13.2
+sqlalchemy==2.0.23
+
+# Web scraping
+requests==2.31.0
+beautifulsoup4==4.12.2
+selenium==4.15.2
+
+# Email
+smtplib-ssl==1.0.0
+
+# LaTeX/PDF processing
+PyPDF2==3.0.1
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.5.0
