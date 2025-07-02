@@ -49,19 +49,28 @@ def verify_database():
     """Verify that the database was created correctly"""
     print("Verifying database setup...")
     
-    try:
-        # Test database connection and basic operations
-        with next(db_manager.get_session()) as session:
-            stats = JobOperations.get_job_stats(session)
-            print(f"✓ Database connection successful")
-            print(f"  - Total jobs: {stats['total_jobs']}")
-            print(f"  - Database path: {db_manager.engine.url}")
-            
-        return True
+    # Test database connection and basic operations
+    with db_manager.get_session() as session:
+        stats = JobOperations.get_job_stats(session)
+        print(f"✓ Database connection successful")
+        print(f"  - Total jobs: {stats['total_jobs']}")
+        print(f"  - Database path: {db_manager.engine.url}")
         
-    except Exception as e:
-        print(f"✗ Database verification failed: {e}")
-        return False
+    return True
+    
+    # try:
+    #     # Test database connection and basic operations
+    #     with next(db_manager.get_session()) as session:
+    #         stats = JobOperations.get_job_stats(session)
+    #         print(f"✓ Database connection successful")
+    #         print(f"  - Total jobs: {stats['total_jobs']}")
+    #         print(f"  - Database path: {db_manager.engine.url}")
+            
+    #     return True
+        
+    # except Exception as e:
+    #     print(f"✗ Database verification failed: {e}")
+    #     return False
 
 def main():
     """Main initialization function"""

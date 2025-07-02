@@ -168,6 +168,17 @@ docker-compose up --build
 
 ## Usage
 
+### Set up database
+
+In the following manner:
+
+```bash
+# Test database operations
+python scripts/setup/init_database.py
+python scripts/migration/migrate_database.py current
+```
+
+
 ### Pipeline Execution
 
 The main pipeline orchestrates all components through a single entry point:
@@ -195,10 +206,6 @@ python -m src --skip-analysis --skip-documents --skip-email
 You can also test individual components:
 
 ```bash
-# Test database operations
-python scripts/setup/init_database.py
-python scripts/migration/migrate_database.py current
-
 # Test scraping (when individual scrapers are implemented)
 # python -m src.scrapers.sites.hirebase_scraper
 ```

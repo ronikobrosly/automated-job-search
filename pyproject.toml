@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.16.2",
     "beautifulsoup4>=4.13.4",
     "fake-useragent>=2.2.0",
+    "pytest>=8.4.1",
     "requests>=2.32.4",
     "selenium>=4.34.0",
     "sqlalchemy>=2.0.41",

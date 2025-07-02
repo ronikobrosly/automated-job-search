@@ -15,6 +15,8 @@ class SiteConfig:
     enabled: bool = True
     max_pages: int = 10
     delay_range: tuple = (2, 5)  # Random delay between requests (min, max seconds)
+    detail_delay_range: tuple = None  # Separate delay for detail page requests (defaults to delay_range)
+    detail_batch_size: int = 10  # Process details in batches to avoid overwhelming servers
     max_retries: int = 3
     timeout: int = 30
     headers: Optional[Dict[str, str]] = None
@@ -31,6 +33,12 @@ class SiteConfig:
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1',
             }
+        
+        # Set default detail_delay_range if not specified
+        if self.detail_delay_range is None:
+            # Use longer delays for detail pages by default
+            min_delay, max_delay = self.delay_range
+            self.detail_delay_range = (min_delay + 2, max_delay + 4)
 
 # Site configurations
 SITES_CONFIG = {
@@ -41,6 +49,8 @@ SITES_CONFIG = {
         enabled=True,
         max_pages=20,
         delay_range=(3, 8),  # More conservative delays for this site
+        detail_delay_range=(5, 12),  # Even more conservative for detail pages
+        detail_batch_size=5,  # Process only 5 detail pages at a time
         max_retries=3,
         timeout=30,
         pagination_param='page',

@@ -88,7 +88,7 @@ class AntiDetectionMixin:
         logging.info(f"Sleeping for {delay:.2f} seconds")
         time.sleep(delay)
     
-    def _make_request(self, url: str, headers: Dict[str, str], timeout: int = 30) -> Optional[requests.Response]:
+    def _make_request(self, url: str, headers: Dict[str, str] = None, timeout: int = 30) -> Optional[requests.Response]:
         """Make a request with error handling and retries"""
         try:
             response = self.session.get(
@@ -117,6 +117,12 @@ class AntiDetectionMixin:
         except requests.exceptions.RequestException as e:
             logging.error(f"Request failed for {url}: {str(e)}")
             return None
+    
+    def _make_detail_request(self, url: str, delay_range: tuple = None) -> Optional[requests.Response]:
+        """Make a request for job detail page with appropriate delays"""
+        if delay_range:
+            self._random_delay(delay_range)
+        return self._make_request(url)
 
 class BaseScraper(AntiDetectionMixin, ABC):
     """Base scraper class with common scraping functionality"""
@@ -148,6 +154,16 @@ class BaseScraper(AntiDetectionMixin, ABC):
     def has_next_page(self, soup: BeautifulSoup, current_page: int) -> bool:
         """Determine if there are more pages to scrape"""
         pass
+    
+    def supports_detail_pages(self) -> bool:
+        """Override to return True if scraper can extract detailed job pages"""
+        return False
+    
+    def extract_job_details(self, job_url: str) -> Optional[Dict[str, Any]]:
+        """Override to extract comprehensive details from individual job pages"""
+        if not self.supports_detail_pages():
+            return None
+        raise NotImplementedError("Implement if supports_detail_pages returns True")
     
     def get_page_url(self, page_number: int) -> str:
         """Generate URL for a specific page"""
@@ -188,6 +204,20 @@ class BaseScraper(AntiDetectionMixin, ABC):
                     if job_data:
                         job_data['job_website'] = self.config.name.lower()
                         job_data['scraped_from_url'] = url
+                        
+                        # Extract detailed job information if supported
+                        if self.supports_detail_pages() and 'job_url' in job_data:
+                            try:
+                                detail_delay = getattr(self.config, 'detail_delay_range', self.config.delay_range)
+                                details = self.extract_job_details(job_data['job_url'])
+                                if details:
+                                    job_data['additional_data'] = details
+                                    # Add delay after detail extraction
+                                    self._random_delay(detail_delay)
+                            except Exception as e:
+                                self.logger.warning(f"Failed to extract details for {job_data.get('job_url', 'unknown')}: {e}")
+                                # Continue with basic job data
+                        
                         jobs.append(job_data)
                 except Exception as e:
                     self.logger.error(f"Error parsing job element: {str(e)}")

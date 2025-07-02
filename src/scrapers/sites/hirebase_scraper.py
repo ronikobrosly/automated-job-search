@@ -285,3 +285,330 @@ class HirebaseScraper(BaseScraper):
         
         # Simple fallback: continue up to max_pages if we found jobs on this page
         return current_page < self.config.max_pages
+    
+    def supports_detail_pages(self) -> bool:
+        """Hirebase supports detailed job page extraction"""
+        return True
+    
+    def extract_job_details(self, job_url: str) -> Optional[Dict[str, Any]]:
+        """Extract comprehensive details from individual Hirebase job pages"""
+        try:
+            self.logger.info(f"Extracting details from: {job_url}")
+            
+            # Use the detail request method with appropriate delays
+            response = self._make_detail_request(job_url, self.config.detail_delay_range)
+            
+            if not response:
+                self.logger.warning(f"Failed to fetch job details from {job_url}")
+                return None
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            details = {}
+            
+            # Extract About the Company section
+            details['about_company'] = self._extract_company_section(soup)
+            
+            # Extract detailed Job Description
+            details['detailed_job_description'] = self._extract_detailed_description(soup)
+            
+            # Extract Requirements
+            details['detailed_requirements'] = self._extract_requirements_section(soup)
+            
+            # Extract Benefits
+            details['benefits'] = self._extract_benefits_section(soup)
+            
+            # Extract Work Type (remote/hybrid/onsite)
+            details['work_type'] = self._extract_work_type(soup)
+            
+            # Extract detailed Salary Range
+            details['detailed_salary_range'] = self._extract_detailed_salary(soup)
+            
+            # Extract any additional fields specific to Hirebase
+            details['company_size'] = self._extract_company_size(soup)
+            details['experience_level'] = self._extract_experience_level(soup)
+            details['job_type'] = self._extract_job_type(soup)  # Full-time, Contract, etc.
+            
+            self.logger.debug(f"Extracted details for {job_url}: {len(details)} fields")
+            return details
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting job details from {job_url}: {str(e)}")
+            return None
+    
+    def _extract_company_section(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract About the Company section"""
+        # Look for company description sections
+        company_selectors = [
+            '.company-description',
+            '.about-company',
+            '.company-info',
+            '[class*="company"][class*="about"]',
+            '[class*="about"][class*="company"]',
+            'section:contains("About")',
+            'div:contains("About the Company")'
+        ]
+        
+        for selector in company_selectors:
+            try:
+                if ':contains(' in selector:
+                    # Handle :contains pseudo-selector manually
+                    elements = soup.find_all(text=re.compile(selector.split(':contains("')[1].split('")')[0], re.IGNORECASE))
+                    for element in elements:
+                        parent = element.parent
+                        if parent and parent.get_text(strip=True):
+                            return parent.get_text(strip=True)[:1000]  # Limit length
+                else:
+                    element = soup.select_one(selector)
+                    if element and element.get_text(strip=True):
+                        return element.get_text(strip=True)[:1000]
+            except Exception:
+                continue
+        
+        return None
+    
+    def _extract_detailed_description(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract detailed job description from job page"""
+        # Look for main job description content
+        description_selectors = [
+            '.job-description',
+            '.description',
+            '.job-content',
+            '.job-details',
+            '[class*="description"]',
+            '.content',
+            'main',
+            '[role="main"]'
+        ]
+        
+        for selector in description_selectors:
+            element = soup.select_one(selector)
+            if element and element.get_text(strip=True):
+                text = element.get_text(separator='\n', strip=True)
+                # Clean up and limit length
+                text = re.sub(r'\n\s*\n', '\n\n', text)  # Clean multiple newlines
+                return text[:3000] if len(text) > 3000 else text
+        
+        return None
+    
+    def _extract_requirements_section(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract requirements/qualifications section"""
+        requirements_selectors = [
+            '.requirements',
+            '.qualifications',
+            '.job-requirements',
+            '[class*="requirement"]',
+            '[class*="qualification"]',
+            'section:contains("Requirements")',
+            'div:contains("Qualifications")',
+            'ul:contains("Required")'
+        ]
+        
+        for selector in requirements_selectors:
+            try:
+                if ':contains(' in selector:
+                    # Handle :contains pseudo-selector manually
+                    search_term = selector.split(':contains("')[1].split('")')[0]
+                    elements = soup.find_all(text=re.compile(search_term, re.IGNORECASE))
+                    for element in elements:
+                        parent = element.parent
+                        if parent and parent.name in ['div', 'section', 'ul', 'ol']:
+                            return parent.get_text(strip=True)[:2000]
+                else:
+                    element = soup.select_one(selector)
+                    if element and element.get_text(strip=True):
+                        return element.get_text(strip=True)[:2000]
+            except Exception:
+                continue
+        
+        return None
+    
+    def _extract_benefits_section(self, soup: BeautifulSoup) -> Optional[List[str]]:
+        """Extract benefits section as a list"""
+        benefits_selectors = [
+            '.benefits',
+            '.perks',
+            '.job-benefits',
+            '[class*="benefit"]',
+            '[class*="perk"]',
+            'section:contains("Benefits")',
+            'div:contains("Perks")',
+            'ul:contains("Benefits")'
+        ]
+        
+        for selector in benefits_selectors:
+            try:
+                if ':contains(' in selector:
+                    search_term = selector.split(':contains("')[1].split('")')[0]
+                    elements = soup.find_all(text=re.compile(search_term, re.IGNORECASE))
+                    for element in elements:
+                        parent = element.parent
+                        if parent:
+                            # Look for list items
+                            list_items = parent.find_all('li')
+                            if list_items:
+                                return [li.get_text(strip=True) for li in list_items[:10]]  # Limit to 10 benefits
+                            # Or just return the text content
+                            text = parent.get_text(strip=True)
+                            if text:
+                                return [text[:500]]  # Return as single item list
+                else:
+                    element = soup.select_one(selector)
+                    if element:
+                        list_items = element.find_all('li')
+                        if list_items:
+                            return [li.get_text(strip=True) for li in list_items[:10]]
+                        text = element.get_text(strip=True)
+                        if text:
+                            return [text[:500]]
+            except Exception:
+                continue
+        
+        return None
+    
+    def _extract_work_type(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract work type (remote, hybrid, onsite)"""
+        # Look for work type indicators in the text
+        text_content = soup.get_text().lower()
+        
+        if 'remote' in text_content:
+            if 'hybrid' in text_content:
+                return 'Hybrid'
+            else:
+                return 'Remote'
+        elif 'on-site' in text_content or 'onsite' in text_content or 'office' in text_content:
+            return 'On-site'
+        
+        # Look for specific selectors
+        work_type_selectors = [
+            '.work-type',
+            '.location-type',
+            '[class*="remote"]',
+            '[class*="work-type"]'
+        ]
+        
+        for selector in work_type_selectors:
+            element = soup.select_one(selector)
+            if element:
+                text = element.get_text(strip=True).lower()
+                if 'remote' in text:
+                    return 'Remote'
+                elif 'hybrid' in text:
+                    return 'Hybrid'
+                elif 'onsite' in text or 'on-site' in text:
+                    return 'On-site'
+        
+        return None
+    
+    def _extract_detailed_salary(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract detailed salary information from job page"""
+        # Look for salary sections
+        salary_selectors = [
+            '.salary',
+            '.compensation',
+            '.pay',
+            '[class*="salary"]',
+            '[class*="compensation"]',
+            '[class*="pay"]'
+        ]
+        
+        for selector in salary_selectors:
+            element = soup.select_one(selector)
+            if element:
+                text = element.get_text(strip=True)
+                # Look for salary patterns in the detailed text
+                salary = self._extract_salary_from_text(text)
+                if salary:
+                    return salary
+        
+        # Fallback: search entire page text for salary patterns
+        return self._extract_salary_from_text(soup.get_text())
+    
+    def _extract_salary_from_text(self, text: str) -> Optional[str]:
+        """Extract salary from text using patterns"""
+        salary_patterns = [
+            r'\$[\d,]+\s*-\s*\$[\d,]+\s*(?:per\s+year|annually|/year)?',
+            r'\$[\d,]+\+?\s*(?:per\s+year|annually|/year)?',
+            r'[\d,]+\s*-\s*[\d,]+\s*USD\s*(?:per\s+year|annually|/year)?',
+            r'[\d,]+k\s*-\s*[\d,]+k\s*(?:per\s+year|annually|/year)?',
+            r'Salary:\s*\$?[\d,]+(?:\s*-\s*\$?[\d,]+)?'
+        ]
+        
+        for pattern in salary_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return match.group().strip()
+        
+        return None
+    
+    def _extract_company_size(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract company size information"""
+        text_content = soup.get_text()
+        
+        size_patterns = [
+            r'(\d+)\s*-\s*(\d+)\s*employees',
+            r'(\d+)\+?\s*employees',
+            r'(startup|small|medium|large|enterprise)\s*company',
+            r'company\s*size:\s*([^.\n]+)'
+        ]
+        
+        for pattern in size_patterns:
+            match = re.search(pattern, text_content, re.IGNORECASE)
+            if match:
+                return match.group().strip()
+        
+        return None
+    
+    def _extract_experience_level(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract experience level requirements"""
+        text_content = soup.get_text().lower()
+        
+        experience_keywords = [
+            ('entry level', 'Entry Level'),
+            ('junior', 'Junior'),
+            ('mid level', 'Mid Level'),
+            ('senior', 'Senior'),
+            ('lead', 'Lead'),
+            ('principal', 'Principal'),
+            ('staff', 'Staff'),
+            ('director', 'Director')
+        ]
+        
+        for keyword, level in experience_keywords:
+            if keyword in text_content:
+                return level
+        
+        # Look for years of experience patterns
+        years_pattern = r'(\d+)\+?\s*years?\s*(?:of\s*)?experience'
+        match = re.search(years_pattern, text_content)
+        if match:
+            years = int(match.group(1))
+            if years <= 2:
+                return 'Entry Level'
+            elif years <= 5:
+                return 'Mid Level'
+            else:
+                return 'Senior'
+        
+        return None
+    
+    def _extract_job_type(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract job type (Full-time, Contract, Part-time, etc.)"""
+        text_content = soup.get_text().lower()
+        
+        job_type_keywords = [
+            ('full-time', 'Full-time'),
+            ('full time', 'Full-time'),
+            ('part-time', 'Part-time'),
+            ('part time', 'Part-time'),
+            ('contract', 'Contract'),
+            ('freelance', 'Freelance'),
+            ('temporary', 'Temporary'),
+            ('internship', 'Internship')
+        ]
+        
+        for keyword, job_type in job_type_keywords:
+            if keyword in text_content:
+                return job_type
+        
+        return None

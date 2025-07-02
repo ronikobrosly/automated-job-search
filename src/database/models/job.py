@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, UniqueConstraint, Index, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 import hashlib
@@ -18,6 +18,7 @@ class Job(Base):
     salary_range = Column(String(100))
     job_description = Column(Text)
     requirements = Column(Text)
+    additional_data = Column(JSON)  # Store site-specific fields like benefits, work_type, detailed requirements
     when_scraped = Column(DateTime, nullable=False, default=func.now())
     last_seen = Column(DateTime, nullable=False, default=func.now())
     is_new = Column(Boolean, default=True)
@@ -40,6 +41,9 @@ class Job(Base):
     def generate_content_hash(self):
         """Generate hash of key content fields to detect changes"""
         content = f"{self.role_title}|{self.company_name}|{self.location}|{self.salary_range}|{self.job_description}"
+        # Include additional_data in hash if present
+        if self.additional_data:
+            content += f"|{str(self.additional_data)}"
         return hashlib.sha256(content.encode()).hexdigest()
     
     def __repr__(self):
