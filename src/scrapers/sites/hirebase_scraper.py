@@ -20,39 +20,18 @@ class HirebaseScraper(BaseScraper):
     
     def get_job_elements(self, soup: BeautifulSoup) -> List[Tag]:
         """Extract job listing elements from the page soup"""
-        # Look for common job listing containers on hirebase.org
-        # These selectors might need adjustment based on actual site structure
-        job_selectors = [
-            'div[class*="job"]',
-            'div[class*="listing"]',
-            'div[class*="card"]',
-            'div[class*="result"]',
-            'article',
-            '.job-item',
-            '.job-listing',
-            '.search-result'
-        ]
+        # AIDEV-NOTE: Hirebase uses specific structure: div.mb-4 > div.bg-white.rounded-xl for job containers
+        job_elements = soup.select('div.mb-4 > div.bg-white.rounded-xl.p-6')
         
-        job_elements = []
-        for selector in job_selectors:
-            elements = soup.select(selector)
-            if elements:
-                self.logger.debug(f"Found {len(elements)} elements with selector: {selector}")
-                job_elements.extend(elements)
-                break  # Use first successful selector
-        
-        # If no specific selectors work, try to find elements with job-related text
         if not job_elements:
-            # Look for divs containing job-related keywords
-            all_divs = soup.find_all('div')
-            for div in all_divs:
-                text = div.get_text().lower()
-                if any(keyword in text for keyword in ['engineer', 'scientist', 'developer', 'analyst', 'manager']):
-                    # Check if this looks like a job listing (has company name, title, etc.)
-                    if len(text.split()) > 10 and len(text) < 2000:  # Reasonable job listing length
-                        job_elements.append(div)
+            # Fallback: try broader selector for the job cards
+            job_elements = soup.select('div.bg-white.rounded-xl:has(h2)')
         
-        self.logger.info(f"Found {len(job_elements)} potential job elements")
+        if not job_elements:
+            # Second fallback: look for any white rounded cards that contain job titles
+            job_elements = soup.select('div.bg-white:has(a[href*="/company/"][href*="/jobs/"])')
+        
+        self.logger.info(f"Found {len(job_elements)} job elements using Hirebase-specific selectors")
         return job_elements
     
     def parse_job_listing(self, job_element: Tag, page_url: str) -> Optional[Dict[str, Any]]:
@@ -108,36 +87,21 @@ class HirebaseScraper(BaseScraper):
             return None
     
     def _extract_job_title(self, element: Tag) -> Optional[str]:
-        """Extract job title from element"""
-        # Try different approaches to find job title
+        """Extract job title from element using Hirebase-specific structure"""
+        # AIDEV-NOTE: Hirebase uses a.group h2 for job titles
+        title_elem = element.select_one('a.group h2')
+        if title_elem and title_elem.get_text(strip=True):
+            return title_elem.get_text(strip=True)
         
-        # Look for common title selectors
-        title_selectors = ['h1', 'h2', 'h3', '.title', '.job-title', '[class*="title"]']
-        for selector in title_selectors:
-            title_elem = element.select_one(selector)
-            if title_elem and title_elem.get_text(strip=True):
-                return title_elem.get_text(strip=True)
+        # Fallback: try any h2 in a link
+        title_elem = element.select_one('a h2')
+        if title_elem and title_elem.get_text(strip=True):
+            return title_elem.get_text(strip=True)
         
-        # Look for strong/bold text that might be a title
-        strong_elements = element.find_all(['strong', 'b'])
-        for strong in strong_elements:
-            text = strong.get_text(strip=True)
-            if text and self._looks_like_job_title(text):
-                return text
-        
-        # Look for links that might be job titles
-        links = element.find_all('a')
-        for link in links:
-            text = link.get_text(strip=True)
-            if text and self._looks_like_job_title(text):
-                return text
-        
-        # Fallback: look for text patterns that look like job titles
-        text_content = element.get_text()
-        lines = [line.strip() for line in text_content.split('\n') if line.strip()]
-        for line in lines[:5]:  # Check first few lines
-            if self._looks_like_job_title(line):
-                return line
+        # Second fallback: try any h2
+        title_elem = element.select_one('h2')
+        if title_elem and title_elem.get_text(strip=True):
+            return title_elem.get_text(strip=True)
         
         return None
     
@@ -158,45 +122,44 @@ class HirebaseScraper(BaseScraper):
         return any(keyword in text_lower for keyword in job_keywords)
     
     def _extract_company_name(self, element: Tag) -> Optional[str]:
-        """Extract company name from element"""
-        # Look for company-related selectors
-        company_selectors = ['.company', '.company-name', '[class*="company"]']
-        for selector in company_selectors:
-            company_elem = element.select_one(selector)
-            if company_elem and company_elem.get_text(strip=True):
-                return company_elem.get_text(strip=True)
+        """Extract company name from element using Hirebase-specific structure"""
+        # AIDEV-NOTE: Hirebase uses a[href^="/company/"] h3 for company names
+        company_elem = element.select_one('a[href^="/company/"] h3')
+        if company_elem and company_elem.get_text(strip=True):
+            return company_elem.get_text(strip=True)
         
-        # Look for text patterns
-        text_content = element.get_text()
-        lines = [line.strip() for line in text_content.split('\n') if line.strip()]
-        
-        # Company name often appears after job title
-        for i, line in enumerate(lines[1:4], 1):  # Check lines 2-4
-            if line and not self._looks_like_job_title(line) and len(line) < 50:
-                # Simple heuristic: if it's not too long and doesn't look like a title
-                if not re.match(r'^\$|^\d+|^[A-Z]{2,3}$', line):  # Exclude salary, numbers, state codes
-                    return line
+        # Fallback: try any h3 that looks like a company name
+        h3_elements = element.select('h3')
+        for h3 in h3_elements:
+            text = h3.get_text(strip=True)
+            if text and not self._looks_like_job_title(text):
+                return text
         
         return "Unknown Company"
     
     def _extract_location(self, element: Tag) -> Optional[str]:
-        """Extract location from element"""
-        # Look for location-related selectors
-        location_selectors = ['.location', '[class*="location"]', '.address']
-        for selector in location_selectors:
-            location_elem = element.select_one(selector)
-            if location_elem and location_elem.get_text(strip=True):
-                return location_elem.get_text(strip=True)
+        """Extract location from element using Hirebase-specific structure"""
+        # AIDEV-NOTE: Hirebase uses div.flex.items-center.gap-1:has(svg.lucide-map-pin) span for location
+        location_elem = element.select_one('div.flex.items-center.gap-1:has(svg.lucide-map-pin) span')
+        if location_elem and location_elem.get_text(strip=True):
+            return location_elem.get_text(strip=True)
         
-        # Look for text patterns that look like locations
+        # Fallback: look for any span near a map pin icon
+        map_pin_parent = element.select_one('svg.lucide-map-pin')
+        if map_pin_parent:
+            parent_div = map_pin_parent.find_parent('div')
+            if parent_div:
+                location_span = parent_div.find('span')
+                if location_span:
+                    return location_span.get_text(strip=True)
+        
+        # Second fallback: search for location patterns in text
         text_content = element.get_text()
-        
-        # Common location patterns
         location_patterns = [
+            r'\b[A-Z][a-z]+,\s*[A-Z][a-z\s]+,\s*[A-Z][a-z\s]+\b',  # City, State, Country
             r'\b[A-Z][a-z]+,\s*[A-Z]{2}\b',  # City, ST
-            r'\b[A-Z][a-z\s]+,\s*[A-Z][a-z\s]+\b',  # City, State/Country
             r'\bRemote\b',
-            r'\bNew York\b|\bSan Francisco\b|\bLos Angeles\b|\bChicago\b|\bBoston\b|\bSeattle\b|\bAustin\b'
+            r'\bHybrid\b'
         ]
         
         for pattern in location_patterns:
@@ -207,30 +170,48 @@ class HirebaseScraper(BaseScraper):
         return None
     
     def _extract_job_url(self, element: Tag, page_url: str) -> Optional[str]:
-        """Extract job URL from element"""
-        # Look for links within the job element
-        links = element.find_all('a', href=True)
+        """Extract job URL from element using Hirebase-specific structure"""
+        # AIDEV-NOTE: Hirebase uses a.group[href^="/company/"] for job detail links
+        job_link = element.select_one('a.group[href^="/company/"]')
+        if job_link and job_link.get('href'):
+            href = job_link.get('href')
+            return urljoin(self.config.base_url, href)
         
-        for link in links:
+        # Fallback: look for any link to company job pages
+        job_links = element.select('a[href*="/company/"][href*="/jobs/"]')
+        for link in job_links:
             href = link.get('href')
             if href:
-                # Convert relative URLs to absolute
-                if href.startswith('/'):
-                    return urljoin(self.config.base_url, href)
-                elif href.startswith('http'):
-                    return href
+                return urljoin(self.config.base_url, href)
         
         return None
     
     def _extract_description(self, element: Tag) -> str:
-        """Extract job description from element"""
-        # Get all text content, but try to clean it up
-        text_content = element.get_text(separator=' ', strip=True)
+        """Extract job description from element using Hirebase-specific structure"""
+        # AIDEV-NOTE: Hirebase has About and Requirements sections in job listings
+        description_parts = []
         
-        # Remove excessive whitespace
+        # Extract About section
+        about_header = element.find('h4', string=lambda text: 'About' in text if text else False)
+        if about_header:
+            about_elem = about_header.find_next_sibling('p')
+            if about_elem:
+                description_parts.append(f"About: {about_elem.get_text(strip=True)}")
+        
+        # Extract Requirements section
+        req_header = element.find('h4', string=lambda text: 'Requirements' in text if text else False)
+        if req_header:
+            req_elem = req_header.find_next_sibling('p')
+            if req_elem:
+                description_parts.append(f"Requirements: {req_elem.get_text(strip=True)}")
+        
+        if description_parts:
+            return ' | '.join(description_parts)
+        
+        # Fallback: get all text content
+        text_content = element.get_text(separator=' ', strip=True)
         text_content = re.sub(r'\s+', ' ', text_content)
         
-        # Limit length to avoid storing too much data
         if len(text_content) > 2000:
             text_content = text_content[:2000] + "..."
         
@@ -262,29 +243,22 @@ class HirebaseScraper(BaseScraper):
         return hashlib.md5(identifier.encode()).hexdigest()[:12]
     
     def has_next_page(self, soup: BeautifulSoup, current_page: int) -> bool:
-        """Determine if there are more pages to scrape"""
-        # For hirebase, we'll use a simple approach:
-        # Continue until we hit max_pages or find no jobs
+        """Determine if there are more pages to scrape for Hirebase"""
+        # AIDEV-NOTE: Check if we found any jobs on current page and haven't hit max_pages
+        job_elements = self.get_job_elements(soup)
         
-        # Look for pagination elements
-        pagination_selectors = [
-            '.pagination',
-            '.pager',
-            '[class*="page"]',
-            'a[href*="page"]'
-        ]
+        # If no jobs found on current page, stop pagination
+        if not job_elements:
+            self.logger.info(f"No jobs found on page {current_page}, stopping pagination")
+            return False
         
-        for selector in pagination_selectors:
-            pagination = soup.select(selector)
-            if pagination:
-                # If we find pagination elements with "next" or page numbers > current_page
-                for elem in pagination:
-                    text = elem.get_text().lower()
-                    if 'next' in text or str(current_page + 1) in text:
-                        return True
+        # Continue if we haven't hit max_pages and found jobs
+        if current_page < self.config.max_pages:
+            self.logger.info(f"Found {len(job_elements)} jobs on page {current_page}, continuing to next page")
+            return True
         
-        # Simple fallback: continue up to max_pages if we found jobs on this page
-        return current_page < self.config.max_pages
+        self.logger.info(f"Reached max pages ({self.config.max_pages}), stopping pagination")
+        return False
     
     def supports_detail_pages(self) -> bool:
         """Hirebase supports detailed job page extraction"""
@@ -337,89 +311,71 @@ class HirebaseScraper(BaseScraper):
             return None
     
     def _extract_company_section(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract About the Company section"""
-        # Look for company description sections
-        company_selectors = [
-            '.company-description',
-            '.about-company',
-            '.company-info',
-            '[class*="company"][class*="about"]',
-            '[class*="about"][class*="company"]',
-            'section:contains("About")',
-            'div:contains("About the Company")'
-        ]
+        """Extract About the Company section from Hirebase job detail page"""
+        # AIDEV-NOTE: Hirebase detail pages have specific structure for company info
+        # Look for the "About the Company" section
+        about_header = soup.find('h3', string=lambda text: 'About the Company' in text if text else False)
+        if about_header:
+            # Find the next paragraph or div with company description
+            next_elem = about_header.find_next_sibling(['p', 'div'])
+            if next_elem and next_elem.get_text(strip=True):
+                return next_elem.get_text(strip=True)[:1000]
         
-        for selector in company_selectors:
-            try:
-                if ':contains(' in selector:
-                    # Handle :contains pseudo-selector manually
-                    elements = soup.find_all(text=re.compile(selector.split(':contains("')[1].split('")')[0], re.IGNORECASE))
-                    for element in elements:
-                        parent = element.parent
-                        if parent and parent.get_text(strip=True):
-                            return parent.get_text(strip=True)[:1000]  # Limit length
-                else:
-                    element = soup.select_one(selector)
-                    if element and element.get_text(strip=True):
-                        return element.get_text(strip=True)[:1000]
-            except Exception:
-                continue
+        # Alternative: look in the sidebar "About [Company]" section
+        about_company_header = soup.find('h3', string=lambda text: text and 'About' in text)
+        if about_company_header:
+            next_elem = about_company_header.find_next_sibling('p')
+            if next_elem and next_elem.get_text(strip=True):
+                return next_elem.get_text(strip=True)[:1000]
         
         return None
     
     def _extract_detailed_description(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract detailed job description from job page"""
-        # Look for main job description content
-        description_selectors = [
-            '.job-description',
-            '.description',
-            '.job-content',
-            '.job-details',
-            '[class*="description"]',
-            '.content',
-            'main',
-            '[role="main"]'
-        ]
-        
-        for selector in description_selectors:
-            element = soup.select_one(selector)
-            if element and element.get_text(strip=True):
-                text = element.get_text(separator='\n', strip=True)
-                # Clean up and limit length
-                text = re.sub(r'\n\s*\n', '\n\n', text)  # Clean multiple newlines
+        """Extract detailed job description from Hirebase job detail page"""
+        # AIDEV-NOTE: Hirebase detail pages have "Job Description" section
+        job_desc_header = soup.find('h3', string=lambda text: 'Job Description' in text if text else False)
+        if job_desc_header:
+            # Find the content div after the header
+            next_elem = job_desc_header.find_next_sibling('div')
+            if next_elem and next_elem.get_text(strip=True):
+                text = next_elem.get_text(separator='\n', strip=True)
+                text = re.sub(r'\n\s*\n', '\n\n', text)
                 return text[:3000] if len(text) > 3000 else text
+        
+        # Alternative: look for prose content in main area
+        prose_elem = soup.select_one('.prose')
+        if prose_elem and prose_elem.get_text(strip=True):
+            text = prose_elem.get_text(separator='\n', strip=True)
+            text = re.sub(r'\n\s*\n', '\n\n', text)
+            return text[:3000] if len(text) > 3000 else text
         
         return None
     
     def _extract_requirements_section(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract requirements/qualifications section"""
-        requirements_selectors = [
-            '.requirements',
-            '.qualifications',
-            '.job-requirements',
-            '[class*="requirement"]',
-            '[class*="qualification"]',
-            'section:contains("Requirements")',
-            'div:contains("Qualifications")',
-            'ul:contains("Required")'
-        ]
+        """Extract requirements/qualifications section from Hirebase job detail page"""
+        # AIDEV-NOTE: Hirebase detail pages often have requirements in the job description div with h2 headers
+        requirements_header = soup.find('h2', string=lambda text: 'Requirements' in text if text else False)
+        if requirements_header:
+            # Find the next ul element or div with requirements
+            next_elem = requirements_header.find_next_sibling(['ul', 'div'])
+            if next_elem and next_elem.get_text(strip=True):
+                return next_elem.get_text(separator='\n', strip=True)[:2000]
         
-        for selector in requirements_selectors:
-            try:
-                if ':contains(' in selector:
-                    # Handle :contains pseudo-selector manually
-                    search_term = selector.split(':contains("')[1].split('")')[0]
-                    elements = soup.find_all(text=re.compile(search_term, re.IGNORECASE))
-                    for element in elements:
-                        parent = element.parent
-                        if parent and parent.name in ['div', 'section', 'ul', 'ol']:
-                            return parent.get_text(strip=True)[:2000]
-                else:
-                    element = soup.select_one(selector)
-                    if element and element.get_text(strip=True):
-                        return element.get_text(strip=True)[:2000]
-            except Exception:
-                continue
+        # Alternative: look for any text block that contains requirement keywords
+        prose_elem = soup.select_one('.prose')
+        if prose_elem:
+            req_text = prose_elem.get_text()
+            # Look for requirements patterns
+            req_patterns = [
+                r'Requirements:?[^.]*(?:\.[^.]*){0,10}',
+                r'Qualifications:?[^.]*(?:\.[^.]*){0,10}',
+                r'Must have:?[^.]*(?:\.[^.]*){0,5}'
+            ]
+            
+            for pattern in req_patterns:
+                match = re.search(pattern, req_text, re.IGNORECASE | re.DOTALL)
+                if match:
+                    return match.group().strip()[:2000]
         
         return None
     
@@ -467,8 +423,18 @@ class HirebaseScraper(BaseScraper):
         return None
     
     def _extract_work_type(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract work type (remote, hybrid, onsite)"""
-        # Look for work type indicators in the text
+        """Extract work type from Hirebase job detail page"""
+        # AIDEV-NOTE: Hirebase shows work type in the "Job Details" section
+        job_details_section = soup.find('h3', string=lambda text: 'Job Details' in text if text else False)
+        if job_details_section:
+            # Look for Work Type field
+            parent_div = job_details_section.find_parent('div')
+            if parent_div:
+                work_type_pattern = re.search(r'Work Type[^\w]*([^\n]+)', parent_div.get_text())
+                if work_type_pattern:
+                    return work_type_pattern.group(1).strip()
+        
+        # Alternative: look for specific work type indicators
         text_content = soup.get_text().lower()
         
         if 'remote' in text_content:
@@ -476,27 +442,8 @@ class HirebaseScraper(BaseScraper):
                 return 'Hybrid'
             else:
                 return 'Remote'
-        elif 'on-site' in text_content or 'onsite' in text_content or 'office' in text_content:
+        elif 'on-site' in text_content or 'onsite' in text_content:
             return 'On-site'
-        
-        # Look for specific selectors
-        work_type_selectors = [
-            '.work-type',
-            '.location-type',
-            '[class*="remote"]',
-            '[class*="work-type"]'
-        ]
-        
-        for selector in work_type_selectors:
-            element = soup.select_one(selector)
-            if element:
-                text = element.get_text(strip=True).lower()
-                if 'remote' in text:
-                    return 'Remote'
-                elif 'hybrid' in text:
-                    return 'Hybrid'
-                elif 'onsite' in text or 'on-site' in text:
-                    return 'On-site'
         
         return None
     
@@ -593,7 +540,17 @@ class HirebaseScraper(BaseScraper):
         return None
     
     def _extract_job_type(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract job type (Full-time, Contract, Part-time, etc.)"""
+        """Extract job type from Hirebase job detail page"""
+        # AIDEV-NOTE: Hirebase shows employment type in the "Job Details" section
+        job_details_section = soup.find('h3', string=lambda text: 'Job Details' in text if text else False)
+        if job_details_section:
+            parent_div = job_details_section.find_parent('div')
+            if parent_div:
+                emp_type_pattern = re.search(r'Employment Type[^\w]*([^\n]+)', parent_div.get_text())
+                if emp_type_pattern:
+                    return emp_type_pattern.group(1).strip()
+        
+        # Fallback: look for job type keywords in text
         text_content = soup.get_text().lower()
         
         job_type_keywords = [

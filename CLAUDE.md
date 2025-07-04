@@ -1,26 +1,30 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
-Automated job checking and application pipeline that scrapes job websites, identifies relevant roles, and generates tailored resumes and cover letters. Deployed on AWS with cron scheduling for hourly execution.
+This project is an automated job checking and application pipeline that scrapes job websites, identifies relevant roles, and generates tailored resumes and cover letters. Deployed on AWS with cron scheduling for hourly execution.
 
-## Architecture
+## The Golden Rule
 
-**Core Pipeline Flow:**
+When unsure about implementation details, ALWAYS ask the developer.  
+
+## Critical Architecture Decisions  
+
+### This Is The Core Pipeline Flow
+
 1. **Job Scraping**: Collect new job postings from configured websites
 2. **Data Persistence**: Store job data in SQLite database for comparison
 3. **Relevance Filtering**: Identify new roles that match criteria
 4. **Document Generation**: Modify LaTeX templates to fit job descriptions
 5. **Email Reporting**: Send hourly reports with tailored PDFs
 
-**Key Components:**
-- Web scrapers for multiple job sites
+### Key Components:
+- Web scrapers (employing Beautiful Soup and Selenium) for multiple job sites
 - SQLite database for job tracking and deduplication
 - LaTeX template processor for resume/cover letter customization
 - Email service for automated reporting
 - AWS deployment configuration for cron scheduling
+
 
 ## Input Requirements
 
@@ -28,6 +32,31 @@ The system expects three main inputs:
 - LaTeX template for resume
 - Cover letter template
 - Configuration file with job websites and scraping parameters
+
+## Code Style and Patterns  
+
+### Anchor comments  
+
+Add specially formatted comments throughout the codebase, where appropriate, for yourself as inline knowledge that can be easily `grep`ped for.  
+
+### Guidelines
+
+- Always add new commands to the README.md file. Ensure that there is a section of the README.md file that gives super basic, step-by-step instructions and commands to run this tool for someone who just received the code and has set up nothing. They should be able to set up their tools and run the code given only this documentation.
+- Always add accompanying unit tests for all new code that is added. These unit tests should cover working, "happy path" scenarios and failure modes. All branching logic should be covered, to keep code coverage close to 100%. These tests' interface should match that of the code, so please examine how the code works first before creating tests, instead of making your own assumptions about the interface. 
+- All test code (except for `pytest.ini`) should live in the `tests/` folder. 
+- Include type hints
+- Always include docstrings at the top of each python module / `.py` file. 
+- Always include docstrings for classes and functions. Describe inputs and outputs.
+- Use `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` (all-caps prefix) for comments aimed at AI and developers.  
+- **Important:** Before scanning files, always first try to **grep for existing anchors** `AIDEV-*` in relevant subdirectories.  
+- **Update relevant anchors** when modifying associated code.  
+- **Do not remove `AIDEV-NOTE`s** without explicit human instruction.  
+- Make sure to add relevant anchor comments, whenever a file or piece of code is:  
+  * too complex, or  
+  * very important, or  
+  * confusing, or  
+  * could have a bug  
+- We optimize for maintainability over cleverness. When in doubt, choose the boring solution.  
 
 ## Common Commands
 
@@ -54,8 +83,8 @@ python -m src.database.migrate
 
 - SQLite database will track job postings to prevent duplicate processing
 - LaTeX processing requires local LaTeX installation or containerized solution
-- Email functionality needs SMTP configuration
-- AWS deployment will use Lambda or EC2 with cron scheduling
+- Email functionality needs SMTP configuration (gmail credentials will be provided)
+- AWS deployment will use Fargate with cron scheduling
 - Consider rate limiting for web scraping to avoid being blocked
 
 ## Project Structure
@@ -118,5 +147,9 @@ python -m src.database.migrate
 ├── .env.example                     # Environment variables template
 ├── .gitignore                       # Git ignore rules
 ├── Dockerfile                       # Container build configuration
-└── docker-compose.yml               # Multi-container orchestration
+├── docker-compose.yml               # Multi-container orchestration
+├── .python-version                  # Python version
+├── CLAUDE.md                        # Claude guidance file
+├── pyproject.toml                   # Contains the build system requirements
+└── uv.lock                          # UV lock file
 ```
