@@ -21,3 +21,9 @@ dependencies = [
     "sqlalchemy>=2.0.41",
     "webdriver-manager>=4.0.2",
 ]
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "ruff>=0.12.2",
+]

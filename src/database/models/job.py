@@ -3,20 +3,32 @@
 import hashlib
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 
 Base = declarative_base()
 
+
 class Job(Base):
     """SQLAlchemy model for job data.
-    
+
     Represents a job posting with all associated metadata,
     tracking, and status information.
     """
-    __tablename__ = 'jobs'
-    
+
+    __tablename__ = "jobs"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_id = Column(String(255), nullable=False)
     company_name = Column(String(255))
@@ -27,7 +39,9 @@ class Job(Base):
     salary_range = Column(String(100))
     job_description = Column(Text)
     requirements = Column(Text)
-    additional_data = Column(JSON)  # Store site-specific fields like benefits, work_type, detailed requirements
+    additional_data = Column(
+        JSON
+    )  # Store site-specific fields like benefits, work_type, detailed requirements
     when_scraped = Column(DateTime, nullable=False, default=func.now())
     last_seen = Column(DateTime, nullable=False, default=func.now())
     is_new = Column(Boolean, default=True)
@@ -36,20 +50,20 @@ class Job(Base):
     content_hash = Column(String(64))
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     __table_args__ = (
-        UniqueConstraint('job_id', 'job_website', name='unique_job_per_site'),
-        Index('idx_job_website', 'job_website'),
-        Index('idx_when_scraped', 'when_scraped'),
-        Index('idx_is_new', 'is_new'),
-        Index('idx_is_relevant', 'is_relevant'),
-        Index('idx_is_processed', 'is_processed'),
-        Index('idx_last_seen', 'last_seen'),
+        UniqueConstraint("job_id", "job_website", name="unique_job_per_site"),
+        Index("idx_job_website", "job_website"),
+        Index("idx_when_scraped", "when_scraped"),
+        Index("idx_is_new", "is_new"),
+        Index("idx_is_relevant", "is_relevant"),
+        Index("idx_is_processed", "is_processed"),
+        Index("idx_last_seen", "last_seen"),
     )
-    
+
     def generate_content_hash(self) -> str:
         """Generate hash of key content fields to detect changes.
-        
+
         Returns:
             str: SHA256 hash of the job content.
         """
@@ -58,10 +72,10 @@ class Job(Base):
         if self.additional_data:
             content += f"|{str(self.additional_data)}"
         return hashlib.sha256(content.encode()).hexdigest()
-    
+
     def __repr__(self) -> str:
         """String representation of the Job instance.
-        
+
         Returns:
             str: String representation showing key job attributes.
         """
