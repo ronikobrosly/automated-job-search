@@ -5,17 +5,23 @@ Handles coordination of multiple scrapers and database integration.
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Generator
+from typing import Any, Dict, List
+
 from sqlalchemy.orm import Session
 
-from config.sites import get_enabled_sites, SiteConfig
-from .sites.hirebase_scraper import HirebaseScraper
+from config.sites import SiteConfig, get_enabled_sites
 from ..database import JobOperations, get_db_session
+from .sites.hirebase_scraper import HirebaseScraper
 
 class ScraperManager:
-    """Manages multiple scrapers and coordinates their execution"""
+    """Manages multiple scrapers and coordinates their execution.
     
-    def __init__(self):
+    Orchestrates the scraping process across multiple job sites,
+    manages database integration, and provides statistics.
+    """
+    
+    def __init__(self) -> None:
+        """Initialize the scraper manager with empty scrapers and stats."""
         self.logger = logging.getLogger("scraper_manager")
         self.scrapers = {}
         self.stats = {
@@ -28,8 +34,8 @@ class ScraperManager:
         # Initialize scrapers for enabled sites
         self._initialize_scrapers()
     
-    def _initialize_scrapers(self):
-        """Initialize scrapers for all enabled sites"""
+    def _initialize_scrapers(self) -> None:
+        """Initialize scrapers for all enabled sites."""
         enabled_sites = get_enabled_sites()
         
         for site_name, site_config in enabled_sites.items():
@@ -44,7 +50,15 @@ class ScraperManager:
                 self.logger.error(f"Failed to initialize scraper for {site_name}: {str(e)}")
     
     def _create_scraper(self, site_name: str, site_config: SiteConfig):
-        """Factory method to create appropriate scraper instance"""
+        """Factory method to create appropriate scraper instance.
+        
+        Args:
+            site_name: Name of the site to create scraper for.
+            site_config: Configuration for the site.
+            
+        Returns:
+            Scraper instance if available, None otherwise.
+        """
         scraper_mapping = {
             'hirebase': HirebaseScraper,
             # Add other scrapers here as they're implemented
@@ -57,8 +71,12 @@ class ScraperManager:
             return scraper_class(site_config)
         return None
     
-    def scrape_all_sites(self) -> Dict[str, any]:
-        """Scrape all enabled sites and return summary statistics"""
+    def scrape_all_sites(self) -> Dict[str, Any]:
+        """Scrape all enabled sites and return summary statistics.
+        
+        Returns:
+            Dict[str, Any]: Summary of scraping results and statistics.
+        """
         self.logger.info("Starting scrape of all enabled sites")
         start_time = datetime.now()
         
@@ -104,8 +122,16 @@ class ScraperManager:
         
         return summary
     
-    def _scrape_site(self, site_name: str, scraper) -> Dict[str, any]:
-        """Scrape a single site and save results to database"""
+    def _scrape_site(self, site_name: str, scraper) -> Dict[str, Any]:
+        """Scrape a single site and save results to database.
+        
+        Args:
+            site_name: Name of the site being scraped.
+            scraper: Scraper instance for the site.
+            
+        Returns:
+            Dict[str, Any]: Site-specific scraping statistics.
+        """
         site_stats = {
             'status': 'success',
             'jobs_scraped': 0,
@@ -157,7 +183,15 @@ class ScraperManager:
         return site_stats
     
     def _process_job(self, session: Session, job_data: Dict) -> str:
-        """Process a single job - create new or update existing"""
+        """Process a single job - create new or update existing.
+        
+        Args:
+            session: Database session.
+            job_data: Dictionary containing job information.
+            
+        Returns:
+            str: Status of job processing ('new', 'updated', or 'existing').
+        """
         job_id = job_data.get('job_id')
         job_website = job_data.get('job_website')
         
@@ -200,12 +234,23 @@ class ScraperManager:
             self.logger.debug(f"Created new job: {job_id}")
             return 'new'
     
-    def get_scraper_stats(self) -> Dict[str, any]:
-        """Get overall scraper statistics"""
+    def get_scraper_stats(self) -> Dict[str, Any]:
+        """Get overall scraper statistics.
+        
+        Returns:
+            Dict[str, Any]: Copy of overall scraping statistics.
+        """
         return self.stats.copy()
     
     def get_new_jobs_since(self, since_datetime: datetime) -> List[Dict]:
-        """Get new jobs since specified datetime"""
+        """Get new jobs since specified datetime.
+        
+        Args:
+            since_datetime: Datetime to filter jobs from.
+            
+        Returns:
+            List[Dict]: List of new jobs with basic information.
+        """
         session = next(get_db_session())
         try:
             new_jobs = JobOperations.get_new_jobs_since(session, since_datetime)

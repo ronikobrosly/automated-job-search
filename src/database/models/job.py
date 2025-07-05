@@ -1,11 +1,20 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, UniqueConstraint, Index, JSON
+"""SQLAlchemy model for job data storage and management."""
+
+import hashlib
+from typing import Optional
+
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
-import hashlib
 
 Base = declarative_base()
 
 class Job(Base):
+    """SQLAlchemy model for job data.
+    
+    Represents a job posting with all associated metadata,
+    tracking, and status information.
+    """
     __tablename__ = 'jobs'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -38,13 +47,22 @@ class Job(Base):
         Index('idx_last_seen', 'last_seen'),
     )
     
-    def generate_content_hash(self):
-        """Generate hash of key content fields to detect changes"""
+    def generate_content_hash(self) -> str:
+        """Generate hash of key content fields to detect changes.
+        
+        Returns:
+            str: SHA256 hash of the job content.
+        """
         content = f"{self.role_title}|{self.company_name}|{self.location}|{self.salary_range}|{self.job_description}"
         # Include additional_data in hash if present
         if self.additional_data:
             content += f"|{str(self.additional_data)}"
         return hashlib.sha256(content.encode()).hexdigest()
     
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """String representation of the Job instance.
+        
+        Returns:
+            str: String representation showing key job attributes.
+        """
         return f"<Job(id={self.id}, role_title='{self.role_title}', company_name='{self.company_name}', job_website='{self.job_website}')>"

@@ -2,37 +2,41 @@
 Base scraper class with anti-detection features and robust error handling.
 """
 
-import time
-import random
 import logging
+import random
+import time
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any, Generator
+from typing import Any, Dict, Generator, List, Optional
 from urllib.parse import urljoin, urlparse
+
 import requests
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-
-# Selenium imports
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from urllib3.util.retry import Retry
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.firefox import GeckoDriverManager
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.firefox.service import Service as FirefoxService
 
 from config.sites.sites_config import SiteConfig
 
 class SeleniumMixin:
-    """Mixin class for Selenium-based scraping with anti-detection features"""
+    """Mixin class for Selenium-based scraping with anti-detection features.
     
-    def __init__(self):
+    Provides functionality for browser automation with stealth features
+    to avoid detection by anti-bot systems.
+    """
+    
+    def __init__(self) -> None:
+        """Initialize the Selenium mixin with driver setup."""
         self.driver = None
         self.wait = None
         self.ua = UserAgent()

@@ -4,10 +4,10 @@ Database migration script for the automated job search system.
 This script handles running migrations and database schema updates.
 """
 
-import os
-import sys
-import subprocess
 import argparse
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 # Add project root to Python path

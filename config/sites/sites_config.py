@@ -4,11 +4,15 @@ This file defines the websites to scrape and their specific parameters.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 @dataclass
 class SiteConfig:
-    """Configuration for a job scraping site"""
+    """Configuration for a job scraping site.
+    
+    Contains all settings needed to scrape a specific job website,
+    including URLs, pagination, delays, and HTTP headers.
+    """
     name: str
     base_url: str
     search_url: str
@@ -23,7 +27,8 @@ class SiteConfig:
     pagination_param: str = "page"
     pagination_start: int = 1
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """Initialize default headers and delay ranges after object creation."""
         if self.headers is None:
             self.headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -69,13 +74,28 @@ SITES_CONFIG = {
 }
 
 def get_enabled_sites() -> Dict[str, SiteConfig]:
-    """Get only the enabled sites for scraping"""
+    """Get only the enabled sites for scraping.
+    
+    Returns:
+        Dict[str, SiteConfig]: Dictionary of enabled site configurations.
+    """
     return {key: config for key, config in SITES_CONFIG.items() if config.enabled}
 
 def get_site_config(site_name: str) -> Optional[SiteConfig]:
-    """Get configuration for a specific site"""
+    """Get configuration for a specific site.
+    
+    Args:
+        site_name: Name of the site to get configuration for.
+        
+    Returns:
+        SiteConfig: Site configuration if found, None otherwise.
+    """
     return SITES_CONFIG.get(site_name)
 
 def get_all_sites() -> Dict[str, SiteConfig]:
-    """Get all site configurations"""
+    """Get all site configurations.
+    
+    Returns:
+        Dict[str, SiteConfig]: Dictionary of all site configurations.
+    """
     return SITES_CONFIG

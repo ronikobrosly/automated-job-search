@@ -1,22 +1,27 @@
 """Test configuration and fixtures for automated job search pipeline."""
 
-import pytest
-import tempfile
 import os
+import tempfile
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from unittest.mock import Mock, patch
 
-from src.database.connection import DatabaseManager
-from src.database.models.job import Job, Base
-from src.database.operations import JobOperations
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from config.sites.sites_config import SiteConfig
+from src.database.connection import DatabaseManager
+from src.database.models.job import Base, Job
+from src.database.operations import JobOperations
 
 
 @pytest.fixture(scope="session")
 def test_db_engine():
-    """Create a test database engine using in-memory SQLite."""
+    """Create a test database engine using in-memory SQLite.
+    
+    Returns:
+        Engine: SQLAlchemy engine connected to in-memory SQLite.
+    """
     engine = create_engine("sqlite:///:memory:", echo=False)
     Base.metadata.create_all(engine)
     return engine
@@ -24,7 +29,14 @@ def test_db_engine():
 
 @pytest.fixture(scope="function")
 def test_db_session(test_db_engine):
-    """Create a test database session with rollback after each test."""
+    """Create a test database session with rollback after each test.
+    
+    Args:
+        test_db_engine: Test database engine fixture.
+        
+    Yields:
+        Session: Database session that rolls back after test.
+    """
     Session = sessionmaker(bind=test_db_engine)
     session = Session()
     
@@ -40,7 +52,11 @@ def test_db_session(test_db_engine):
 
 @pytest.fixture(scope="function")
 def test_db_manager():
-    """Create a test database manager with temporary file."""
+    """Create a test database manager with temporary file.
+    
+    Yields:
+        DatabaseManager: Test database manager with temporary SQLite file.
+    """
     with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp_file:
         db_path = tmp_file.name
     
@@ -56,7 +72,11 @@ def test_db_manager():
 
 @pytest.fixture
 def sample_job_data():
-    """Sample job data for testing."""
+    """Sample job data for testing.
+    
+    Returns:
+        Dict: Sample job data dictionary.
+    """
     return {
         "job_id": "test-job-123",
         "job_website": "test-site",
@@ -79,7 +99,15 @@ def sample_job_data():
 
 @pytest.fixture
 def sample_job_instance(test_db_session, sample_job_data):
-    """Create a sample job instance in the database."""
+    """Create a sample job instance in the database.
+    
+    Args:
+        test_db_session: Test database session.
+        sample_job_data: Sample job data fixture.
+        
+    Returns:
+        Job: Job instance created in the test database.
+    """
     job = Job(**sample_job_data)
     test_db_session.add(job)
     test_db_session.commit()
@@ -88,7 +116,11 @@ def sample_job_instance(test_db_session, sample_job_data):
 
 @pytest.fixture
 def multiple_jobs_data():
-    """Multiple job data samples for testing."""
+    """Multiple job data samples for testing.
+    
+    Returns:
+        List[Dict]: List of job data dictionaries.
+    """
     base_data = {
         "job_website": "test-site",
         "company_name": "Tech Corp",
@@ -113,7 +145,11 @@ def multiple_jobs_data():
 
 @pytest.fixture
 def test_site_config():
-    """Sample site configuration for testing."""
+    """Sample site configuration for testing.
+    
+    Returns:
+        SiteConfig: Test site configuration.
+    """
     return SiteConfig(
         name="test-site",
         enabled=True,
@@ -127,7 +163,11 @@ def test_site_config():
 
 @pytest.fixture
 def mock_requests_session():
-    """Mock requests session for testing HTTP requests."""
+    """Mock requests session for testing HTTP requests.
+    
+    Yields:
+        Mock: Mocked requests session instance.
+    """
     with patch('requests.Session') as mock_session:
         mock_instance = Mock()
         mock_session.return_value = mock_instance
@@ -145,7 +185,11 @@ def mock_requests_session():
 
 @pytest.fixture
 def mock_beautiful_soup():
-    """Mock Beautiful Soup for testing HTML parsing."""
+    """Mock Beautiful Soup for testing HTML parsing.
+    
+    Yields:
+        Mock: Mocked BeautifulSoup instance.
+    """
     with patch('bs4.BeautifulSoup') as mock_soup:
         mock_instance = Mock()
         mock_soup.return_value = mock_instance
@@ -160,7 +204,11 @@ def mock_beautiful_soup():
 
 @pytest.fixture
 def mock_datetime():
-    """Mock datetime for testing time-dependent functions."""
+    """Mock datetime for testing time-dependent functions.
+    
+    Yields:
+        Mock: Mocked datetime class.
+    """
     test_time = datetime(2024, 1, 15, 12, 0, 0)
     with patch('datetime.datetime') as mock_dt:
         mock_dt.now.return_value = test_time
@@ -171,7 +219,11 @@ def mock_datetime():
 
 @pytest.fixture
 def sample_html_content():
-    """Sample HTML content for testing scrapers."""
+    """Sample HTML content for testing scrapers.
+    
+    Returns:
+        str: HTML content with job listings.
+    """
     return """
     <html>
         <body>
@@ -202,7 +254,11 @@ def sample_html_content():
 
 @pytest.fixture
 def sample_job_detail_html():
-    """Sample detailed job HTML content."""
+    """Sample detailed job HTML content.
+    
+    Returns:
+        str: HTML content for job detail page.
+    """
     return """
     <html>
         <body>
@@ -243,7 +299,11 @@ def sample_job_detail_html():
 
 @pytest.fixture
 def temp_log_file():
-    """Create a temporary log file for testing."""
+    """Create a temporary log file for testing.
+    
+    Yields:
+        str: Path to temporary log file.
+    """
     with tempfile.NamedTemporaryFile(mode='w+', suffix='.log', delete=False) as tmp_file:
         tmp_file.write("Test log content\n")
         tmp_file.flush()
@@ -256,7 +316,11 @@ def temp_log_file():
 
 @pytest.fixture(autouse=True)
 def reset_singletons():
-    """Reset any singleton instances between tests."""
+    """Reset any singleton instances between tests.
+    
+    Yields:
+        None: Fixture runs automatically before each test.
+    """
     yield
     # Add any singleton reset logic here if needed
 

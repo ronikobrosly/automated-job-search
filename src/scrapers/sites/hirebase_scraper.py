@@ -2,19 +2,29 @@
 Hirebase.org specific scraper implementation.
 """
 
-import re
 import logging
-from typing import List, Dict, Optional, Any
-from bs4 import BeautifulSoup, Tag
+import re
+from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin, urlparse
 
-from ..base_scraper import SeleniumBaseScraper
+from bs4 import BeautifulSoup, Tag
+
 from config.sites.sites_config import SiteConfig
+from ..base_scraper import SeleniumBaseScraper
 
 class HirebaseScraper(SeleniumBaseScraper):
-    """Scraper for hirebase.org job listings"""
+    """Scraper for hirebase.org job listings.
     
-    def __init__(self, site_config: SiteConfig):
+    Specialized scraper for the Hirebase job platform that handles
+    React-based dynamic content loading and extracts job details.
+    """
+    
+    def __init__(self, site_config: SiteConfig) -> None:
+        """Initialize the Hirebase scraper.
+        
+        Args:
+            site_config: Configuration for the Hirebase site.
+        """
         super().__init__(site_config)
         self.logger = logging.getLogger("scraper.hirebase")
         
@@ -25,7 +35,14 @@ class HirebaseScraper(SeleniumBaseScraper):
         self.location_selector = 'div.flex.items-center.gap-1:has(svg.lucide-map-pin) span'
     
     def get_job_elements(self, soup: BeautifulSoup) -> List[Tag]:
-        """Extract job listing elements from the page soup"""
+        """Extract job listing elements from the page soup.
+        
+        Args:
+            soup: BeautifulSoup object of the page content.
+            
+        Returns:
+            List[Tag]: List of job element tags found on the page.
+        """
         # AIDEV-NOTE: Hirebase uses specific structure: div.mb-4 > div.bg-white.rounded-xl for job containers
         job_elements = soup.select(self.job_card_selector)
         
@@ -48,8 +65,8 @@ class HirebaseScraper(SeleniumBaseScraper):
         self.logger.info(f"Found {len(job_elements)} job elements using Hirebase-specific selectors")
         return job_elements
     
-    def _wait_for_page_load(self):
-        """Wait for the React app to fully load with job content"""
+    def _wait_for_page_load(self) -> None:
+        """Wait for the React app to fully load with job content."""
         try:
             # AIDEV-NOTE: Enhanced waiting specifically for Hirebase React app
             from selenium.webdriver.support.ui import WebDriverWait
@@ -85,7 +102,15 @@ class HirebaseScraper(SeleniumBaseScraper):
             time.sleep(5)  # Fallback wait
     
     def parse_job_listing(self, job_element: Tag, page_url: str) -> Optional[Dict[str, Any]]:
-        """Parse a single job listing element into structured data"""
+        """Parse a single job listing element into structured data.
+        
+        Args:
+            job_element: BeautifulSoup Tag containing job information.
+            page_url: URL of the page being scraped.
+            
+        Returns:
+            Dict[str, Any]: Parsed job data or None if parsing failed.
+        """
         try:
             job_data = {}
             
@@ -137,7 +162,14 @@ class HirebaseScraper(SeleniumBaseScraper):
             return None
     
     def _extract_job_title(self, element: Tag) -> Optional[str]:
-        """Extract job title from element using Hirebase-specific structure"""
+        """Extract job title from element using Hirebase-specific structure.
+        
+        Args:
+            element: BeautifulSoup Tag to extract title from.
+            
+        Returns:
+            str: Job title if found, None otherwise.
+        """
         # AIDEV-NOTE: Hirebase uses a.group h2 for job titles
         title_elem = element.select_one('a.group h2')
         if title_elem and title_elem.get_text(strip=True):
@@ -156,7 +188,14 @@ class HirebaseScraper(SeleniumBaseScraper):
         return None
     
     def _looks_like_job_title(self, text: str) -> bool:
-        """Check if text looks like a job title"""
+        """Check if text looks like a job title.
+        
+        Args:
+            text: Text to analyze.
+            
+        Returns:
+            bool: True if text resembles a job title.
+        """
         if not text or len(text) < 5 or len(text) > 100:
             return False
         
@@ -172,7 +211,14 @@ class HirebaseScraper(SeleniumBaseScraper):
         return any(keyword in text_lower for keyword in job_keywords)
     
     def _extract_company_name(self, element: Tag) -> Optional[str]:
-        """Extract company name from element using Hirebase-specific structure"""
+        """Extract company name from element using Hirebase-specific structure.
+        
+        Args:
+            element: BeautifulSoup Tag to extract company name from.
+            
+        Returns:
+            str: Company name if found, fallback value otherwise.
+        """
         # AIDEV-NOTE: Hirebase uses a[href^="/company/"] h3 for company names
         company_elem = element.select_one('a[href^="/company/"] h3')
         if company_elem and company_elem.get_text(strip=True):
@@ -188,7 +234,14 @@ class HirebaseScraper(SeleniumBaseScraper):
         return "Unknown Company"
     
     def _extract_location(self, element: Tag) -> Optional[str]:
-        """Extract location from element using Hirebase-specific structure"""
+        """Extract location from element using Hirebase-specific structure.
+        
+        Args:
+            element: BeautifulSoup Tag to extract location from.
+            
+        Returns:
+            str: Location information if found, None otherwise.
+        """
         # AIDEV-NOTE: Hirebase uses div.flex.items-center.gap-1:has(svg.lucide-map-pin) span for location
         location_elem = element.select_one('div.flex.items-center.gap-1:has(svg.lucide-map-pin) span')
         if location_elem and location_elem.get_text(strip=True):

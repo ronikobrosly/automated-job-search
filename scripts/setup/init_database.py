@@ -5,18 +5,22 @@ This script sets up the SQLite database and runs initial migrations.
 """
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.database import db_manager, JobOperations
+from src.database import JobOperations, db_manager
 
-def run_alembic_upgrade():
-    """Run alembic upgrade to create database schema"""
+def run_alembic_upgrade() -> bool:
+    """Run alembic upgrade to create database schema.
+    
+    Returns:
+        bool: True if migration succeeded, False otherwise.
+    """
     print("Running database migrations...")
     
     # Change to data directory where alembic.ini is located
@@ -45,8 +49,12 @@ def run_alembic_upgrade():
     
     return True
 
-def verify_database():
-    """Verify that the database was created correctly"""
+def verify_database() -> bool:
+    """Verify that the database was created correctly.
+    
+    Returns:
+        bool: True if verification succeeded, False otherwise.
+    """
     print("Verifying database setup...")
     
     # Test database connection and basic operations
@@ -58,6 +66,7 @@ def verify_database():
         
     return True
     
+    # AIDEV-NOTE: Commented out alternative verification approach
     # try:
     #     # Test database connection and basic operations
     #     with next(db_manager.get_session()) as session:
@@ -72,8 +81,8 @@ def verify_database():
     #     print(f"✗ Database verification failed: {e}")
     #     return False
 
-def main():
-    """Main initialization function"""
+def main() -> None:
+    """Main initialization function."""
     print("Initializing automated job search database...")
     print("=" * 50)
     

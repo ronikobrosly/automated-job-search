@@ -14,21 +14,29 @@ Usage:
     python src/__main__.py
 """
 
+import argparse
 import logging
 import sys
-import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Dict
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.scrapers import ScraperManager
 from src.database import JobOperations, get_db_session
+from src.scrapers import ScraperManager
 
-def setup_logging(log_level: str = "INFO"):
-    """Set up logging configuration"""
+def setup_logging(log_level: str = "INFO") -> logging.Logger:
+    """Set up logging configuration.
+    
+    Args:
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR).
+        
+    Returns:
+        logging.Logger: Configured logger for the main pipeline.
+    """
     log_dir = project_root / "logs" / "application"
     log_dir.mkdir(parents=True, exist_ok=True)
     
@@ -54,12 +62,11 @@ def setup_logging(log_level: str = "INFO"):
     
     return logging.getLogger("main_pipeline")
 
-def scrape_jobs() -> dict:
-    """
-    Execute the job scraping phase of the pipeline.
+def scrape_jobs() -> Dict:
+    """Execute the job scraping phase of the pipeline.
     
     Returns:
-        dict: Summary statistics from scraping operation
+        Dict: Summary statistics from scraping operation.
     """
     logger = logging.getLogger("main_pipeline.scraping")
     logger.info("Starting job scraping phase")
@@ -78,9 +85,8 @@ def scrape_jobs() -> dict:
         logger.error(f"Job scraping failed: {str(e)}")
         raise
 
-def analyze_job_relevance(new_jobs_count: int) -> dict:
-    """
-    Analyze scraped jobs for relevance based on configured criteria.
+def analyze_job_relevance(new_jobs_count: int) -> Dict:
+    """Analyze scraped jobs for relevance based on configured criteria.
     
     This is a placeholder for the job analysis logic that will:
     - Load user-defined job criteria
@@ -89,10 +95,10 @@ def analyze_job_relevance(new_jobs_count: int) -> dict:
     - Filter out jobs that don't meet minimum relevance threshold
     
     Args:
-        new_jobs_count: Number of new jobs to analyze
+        new_jobs_count: Number of new jobs to analyze.
         
     Returns:
-        dict: Analysis results and statistics
+        Dict: Analysis results and statistics.
     """
     logger = logging.getLogger("main_pipeline.analysis")
     logger.info(f"Starting job relevance analysis for {new_jobs_count} new jobs")
@@ -117,9 +123,8 @@ def analyze_job_relevance(new_jobs_count: int) -> dict:
         'status': 'completed'
     }
 
-def generate_documents(relevant_jobs_count: int) -> dict:
-    """
-    Generate customized resumes and cover letters for relevant jobs.
+def generate_documents(relevant_jobs_count: int) -> Dict:
+    """Generate customized resumes and cover letters for relevant jobs.
     
     This is a placeholder for the document generation logic that will:
     - Load LaTeX templates for resume and cover letter
@@ -130,10 +135,10 @@ def generate_documents(relevant_jobs_count: int) -> dict:
     - Update job processing status in database
     
     Args:
-        relevant_jobs_count: Number of relevant jobs to process
+        relevant_jobs_count: Number of relevant jobs to process.
         
     Returns:
-        dict: Document generation results and statistics
+        Dict: Document generation results and statistics.
     """
     logger = logging.getLogger("main_pipeline.documents")
     logger.info(f"Starting document generation for {relevant_jobs_count} relevant jobs")
@@ -163,9 +168,8 @@ def generate_documents(relevant_jobs_count: int) -> dict:
         'status': 'completed'
     }
 
-def send_email_report(pipeline_results: dict) -> dict:
-    """
-    Send email report with pipeline results and generated documents.
+def send_email_report(pipeline_results: Dict) -> Dict:
+    """Send email report with pipeline results and generated documents.
     
     This is a placeholder for the email reporting logic that will:
     - Load email configuration (SMTP settings, recipients)
@@ -175,10 +179,10 @@ def send_email_report(pipeline_results: dict) -> dict:
     - Log email delivery status
     
     Args:
-        pipeline_results: Combined results from all pipeline phases
+        pipeline_results: Combined results from all pipeline phases.
         
     Returns:
-        dict: Email sending results and statistics
+        Dict: Email sending results and statistics.
     """
     logger = logging.getLogger("main_pipeline.email")
     logger.info("Starting email report generation and sending")
@@ -210,12 +214,11 @@ def send_email_report(pipeline_results: dict) -> dict:
         'status': 'completed'
     }
 
-def cleanup_old_data() -> dict:
-    """
-    Clean up old job data and generated files to manage storage.
+def cleanup_old_data() -> Dict:
+    """Clean up old job data and generated files to manage storage.
     
     Returns:
-        dict: Cleanup results and statistics
+        Dict: Cleanup results and statistics.
     """
     logger = logging.getLogger("main_pipeline.cleanup")
     logger.info("Starting cleanup of old data")
@@ -249,8 +252,12 @@ def cleanup_old_data() -> dict:
             'error': str(e)
         }
 
-def get_database_stats() -> dict:
-    """Get current database statistics for reporting"""
+def get_database_stats() -> Dict:
+    """Get current database statistics for reporting.
+    
+    Returns:
+        Dict: Current database statistics or error information.
+    """
     try:
         session = next(get_db_session())
         try:
@@ -261,7 +268,12 @@ def get_database_stats() -> dict:
     except Exception as e:
         return {'error': str(e)}
 
-def main():
+def main() -> int:
+    """Main pipeline execution function.
+    
+    Returns:
+        int: Exit code (0 for success, 1 for failure).
+    """
     """Main pipeline execution function"""
     parser = argparse.ArgumentParser(description='Automated Job Search Pipeline')
     parser.add_argument('--log-level', default='INFO', 

@@ -5,14 +5,19 @@ This migration adds a JSON field to store site-specific job details
 like benefits, work_type, detailed requirements, etc.
 """
 
+import logging
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
-import logging
 
 logger = logging.getLogger(__name__)
 
-def upgrade(engine: Engine):
-    """Add additional_data JSON field to jobs table"""
+def upgrade(engine: Engine) -> None:
+    """Add additional_data JSON field to jobs table.
+    
+    Args:
+        engine: SQLAlchemy database engine.
+    """
     try:
         with engine.connect() as conn:
             # Add the additional_data column as JSON
@@ -26,8 +31,12 @@ def upgrade(engine: Engine):
         logger.error(f"Failed to add additional_data field: {e}")
         raise
 
-def downgrade(engine: Engine):
-    """Remove additional_data JSON field from jobs table"""
+def downgrade(engine: Engine) -> None:
+    """Remove additional_data JSON field from jobs table.
+    
+    Args:
+        engine: SQLAlchemy database engine.
+    """
     try:
         with engine.connect() as conn:
             # Remove the additional_data column
