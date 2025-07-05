@@ -80,10 +80,6 @@ The automated pipeline (`src/__main__.py`) executes these phases sequentially:
 │   │   ├── ec2/                     # EC2 deployment scripts
 │   │   └── lambda/                  # Lambda function configurations
 │   └── docker/                      # Container configurations
-├── docs/                            # Documentation
-│   ├── api/                         # API documentation
-│   ├── architecture/                # System architecture docs
-│   └── deployment/                  # Deployment guides
 ├── logs/                            # Application logs
 │   ├── application/                 # General application logs
 │   ├── errors/                      # Error logs

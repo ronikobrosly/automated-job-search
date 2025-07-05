@@ -8,20 +8,26 @@ from typing import List, Dict, Optional, Any
 from bs4 import BeautifulSoup, Tag
 from urllib.parse import urljoin, urlparse
 
-from ..base_scraper import BaseScraper
-from config.sites import SiteConfig
+from ..base_scraper import SeleniumBaseScraper
+from config.sites.sites_config import SiteConfig
 
-class HirebaseScraper(BaseScraper):
+class HirebaseScraper(SeleniumBaseScraper):
     """Scraper for hirebase.org job listings"""
     
     def __init__(self, site_config: SiteConfig):
         super().__init__(site_config)
         self.logger = logging.getLogger("scraper.hirebase")
+        
+        # AIDEV-NOTE: Hirebase-specific configuration for Selenium
+        self.job_card_selector = 'div.mb-4 > div.bg-white.rounded-xl.p-6'
+        self.job_title_selector = 'a.group h2'
+        self.company_selector = 'a[href^="/company/"] h3'
+        self.location_selector = 'div.flex.items-center.gap-1:has(svg.lucide-map-pin) span'
     
     def get_job_elements(self, soup: BeautifulSoup) -> List[Tag]:
         """Extract job listing elements from the page soup"""
         # AIDEV-NOTE: Hirebase uses specific structure: div.mb-4 > div.bg-white.rounded-xl for job containers
-        job_elements = soup.select('div.mb-4 > div.bg-white.rounded-xl.p-6')
+        job_elements = soup.select(self.job_card_selector)
         
         if not job_elements:
             # Fallback: try broader selector for the job cards
@@ -31,8 +37,52 @@ class HirebaseScraper(BaseScraper):
             # Second fallback: look for any white rounded cards that contain job titles
             job_elements = soup.select('div.bg-white:has(a[href*="/company/"][href*="/jobs/"])')
         
+        if not job_elements:
+            # Third fallback: try even broader selectors for job cards
+            job_elements = soup.select('div.bg-white.rounded-xl, div.bg-white.rounded, div[class*="job"], div[class*="card"]')
+        
+        if not job_elements:
+            # Fourth fallback: look for any divs with job-related content
+            job_elements = soup.select('div:contains("engineer"), div:contains("developer"), div:contains("manager")')
+        
         self.logger.info(f"Found {len(job_elements)} job elements using Hirebase-specific selectors")
         return job_elements
+    
+    def _wait_for_page_load(self):
+        """Wait for the React app to fully load with job content"""
+        try:
+            # AIDEV-NOTE: Enhanced waiting specifically for Hirebase React app
+            from selenium.webdriver.support.ui import WebDriverWait
+            from selenium.webdriver.support import expected_conditions as EC
+            from selenium.webdriver.common.by import By
+            
+            # Wait for React to finish loading
+            WebDriverWait(self.driver, 15).until(
+                lambda driver: driver.execute_script(
+                    "return document.readyState === 'complete' && "
+                    "document.querySelector('#root') && "
+                    "document.querySelector('#root').children.length > 0"
+                )
+            )
+            self.logger.info("React app loaded, waiting for job content...")
+            
+            # Wait a bit more for job content to load
+            import time
+            time.sleep(3)
+            
+            # Try to wait for job cards to appear
+            try:
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'div.bg-white.rounded-xl, [data-testid="job-card"], .job-card'))
+                )
+                self.logger.info("Job cards found!")
+            except:
+                self.logger.warning("Job cards not found with standard selectors, proceeding anyway")
+                
+        except Exception as e:
+            self.logger.warning(f"Error waiting for page load: {e}")
+            import time
+            time.sleep(5)  # Fallback wait
     
     def parse_job_listing(self, job_element: Tag, page_url: str) -> Optional[Dict[str, Any]]:
         """Parse a single job listing element into structured data"""
@@ -236,6 +286,76 @@ class HirebaseScraper(BaseScraper):
         
         return None
     
+    def scrape_page(self, page_number: int) -> List[Dict[str, Any]]:
+        """Override to add custom waiting for Hirebase React app"""
+        url = self.get_page_url(page_number)
+        self.logger.info(f"Scraping Hirebase page {page_number} with Selenium: {url}")
+        
+        # Random delay before request
+        if page_number > 1:  # Don't delay on first page
+            self._random_delay(self.config.delay_range)
+        
+        # AIDEV-NOTE: Use Selenium to load the page with enhanced waiting
+        soup = self._selenium_get_page(url, wait_for_element=self._get_wait_element())
+        
+        if not soup:
+            self.stats['errors'] += 1
+            return []
+        
+        # Additional waiting for React app to load
+        self._wait_for_page_load()
+        
+        # Re-get page source after waiting
+        page_source = self.driver.page_source
+        soup = BeautifulSoup(page_source, 'html.parser')
+        
+        try:
+            # Optional: Scroll to trigger lazy loading
+            self._selenium_scroll_page()
+            
+            # Re-get page source after scrolling
+            page_source = self.driver.page_source
+            soup = BeautifulSoup(page_source, 'html.parser')
+            
+            job_elements = self.get_job_elements(soup)
+            
+            jobs = []
+            for job_element in job_elements:
+                try:
+                    job_data = self.parse_job_listing(job_element, url)
+                    if job_data:
+                        job_data['job_website'] = self.config.name.lower()
+                        job_data['scraped_from_url'] = url
+                        
+                        # Extract detailed job information if supported
+                        if self.supports_detail_pages() and 'job_url' in job_data:
+                            try:
+                                detail_delay = getattr(self.config, 'detail_delay_range', self.config.delay_range)
+                                details = self.extract_job_details(job_data['job_url'])
+                                if details:
+                                    job_data['additional_data'] = details
+                                    # Add delay after detail extraction
+                                    self._random_delay(detail_delay)
+                            except Exception as e:
+                                self.logger.warning(f"Failed to extract details for {job_data.get('job_url', 'unknown')}: {e}")
+                                # Continue with basic job data
+                        
+                        jobs.append(job_data)
+                except Exception as e:
+                    self.logger.error(f"Error parsing job element: {str(e)}")
+                    continue
+            
+            self.stats['pages_scraped'] += 1
+            self.stats['jobs_found'] += len(jobs)
+            self.logger.info(f"Found {len(jobs)} jobs on Hirebase page {page_number}")
+            
+            return jobs
+            
+        except Exception as e:
+            self.logger.error(f"Error parsing Hirebase page {page_number}: {str(e)}")
+            self.stats['errors'] += 1
+            return []
+    
     def _generate_job_id(self, identifier: str) -> str:
         """Generate a consistent job ID from identifier"""
         # Create a hash-like ID that's deterministic
@@ -264,20 +384,19 @@ class HirebaseScraper(BaseScraper):
         """Hirebase supports detailed job page extraction"""
         return True
     
-    def extract_job_details(self, job_url: str) -> Optional[Dict[str, Any]]:
+    def _get_wait_element(self) -> str:
+        """Return CSS selector for job elements to wait for"""
+        # AIDEV-NOTE: Wait for React app to load and render job cards
+        # Since hirebase is a React SPA, we need to wait for the actual job content to load
+        return 'div.bg-white.rounded-xl, [data-testid="job-card"], .job-card, main'
+    
+    def _get_detail_wait_element(self) -> str:
+        """Return CSS selector for detail page elements to wait for"""
+        return '.prose, h3, .job-description'  # Wait for main content
+    
+    def _extract_job_details_from_soup(self, soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
         """Extract comprehensive details from individual Hirebase job pages"""
         try:
-            self.logger.info(f"Extracting details from: {job_url}")
-            
-            # Use the detail request method with appropriate delays
-            response = self._make_detail_request(job_url, self.config.detail_delay_range)
-            
-            if not response:
-                self.logger.warning(f"Failed to fetch job details from {job_url}")
-                return None
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
             details = {}
             
             # Extract About the Company section
@@ -303,11 +422,11 @@ class HirebaseScraper(BaseScraper):
             details['experience_level'] = self._extract_experience_level(soup)
             details['job_type'] = self._extract_job_type(soup)  # Full-time, Contract, etc.
             
-            self.logger.debug(f"Extracted details for {job_url}: {len(details)} fields")
+            self.logger.debug(f"Extracted details from soup: {len(details)} fields")
             return details
             
         except Exception as e:
-            self.logger.error(f"Error extracting job details from {job_url}: {str(e)}")
+            self.logger.error(f"Error extracting job details from soup: {str(e)}")
             return None
     
     def _extract_company_section(self, soup: BeautifulSoup) -> Optional[str]:

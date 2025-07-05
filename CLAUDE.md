@@ -43,6 +43,7 @@ Add specially formatted comments throughout the codebase, where appropriate, for
 
 - Always add new commands to the README.md file. Ensure that there is a section of the README.md file that gives super basic, step-by-step instructions and commands to run this tool for someone who just received the code and has set up nothing. They should be able to set up their tools and run the code given only this documentation.
 - Always add accompanying unit tests for all new code that is added. These unit tests should cover working, "happy path" scenarios and failure modes. All branching logic should be covered, to keep code coverage close to 100%. These tests' interface should match that of the code, so please examine how the code works first before creating tests, instead of making your own assumptions about the interface. 
+- Imports should be grouped in the following fashion: all built-in python packages should be listed, in alphabetical order, then there should be an empty line separating this from a group of install packages listed in alphabetical order, and then an empty line separating this from a group of package module imports, occuring in alphabetical order.
 - All test code (except for `pytest.ini`) should live in the `tests/` folder. 
 - Include type hints
 - Always include docstrings at the top of each python module / `.py` file. 
@@ -104,10 +105,6 @@ python -m src.database.migrate
 │   │   ├── ec2/                     # EC2 deployment scripts
 │   │   └── lambda/                  # Lambda function configurations
 │   └── docker/                      # Container configurations
-├── docs/                            # Documentation
-│   ├── api/                         # API documentation
-│   ├── architecture/                # System architecture docs
-│   └── deployment/                  # Deployment guides
 ├── logs/                            # Application logs
 │   ├── application/                 # General application logs
 │   ├── errors/                      # Error logs
